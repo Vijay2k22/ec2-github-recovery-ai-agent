@@ -1,0 +1,9 @@
+**/.terraform/
+**/terraform.tfstate*
+**/*.tfplan
+**/terraform.tfvars
+**/backend.hcl
+*.pem
+.env
+__pycache__/
+*.zip
