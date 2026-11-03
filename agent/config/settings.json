@@ -1,0 +1,17 @@
+{
+  "aws_region": "ap-south-1",
+  "bedrock_region": "ap-south-1",
+  "bedrock_model_id": "arn:aws:bedrock:ap-south-1:893675906501:inference-profile/apac.amazon.nova-lite-v1:0",
+  "instance_ids": [
+    "i-0a694dc4b4bbcf9b2",
+    "i-03807c84cd933cea6"
+  ],
+  "target_group_arn": "arn:aws:elasticloadbalancing:ap-south-1:893675906501:targetgroup/vj-recovery-web-tg/3455ac6b6dcfd2ba",
+  "alb_url": "http://vj-recovery-web-alb-482889436.ap-south-1.elb.amazonaws.com",
+  "poll_interval_seconds": 10,
+  "max_output_tokens": 1000,
+  "temperature": 0,
+  "aws_api_timeout_seconds": 30,
+  "bedrock_timeout_seconds": 90,
+  "state_db_path": "/state/incidents.db"
+}

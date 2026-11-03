@@ -1,0 +1,18 @@
+{
+  "allowed_actions": [
+    "start_ec2_instance",
+    "restart_apache"
+  ],
+  "require_approval": true,
+  "approval_expiry_seconds": 300,
+  "required_tags": {
+    "Project": "vj-recovery",
+    "AutoRecover": "true",
+    "Maintenance": "false"
+  },
+  "max_investigation_steps": 8,
+  "max_recovery_attempts_per_incident": 2,
+  "cooldown_seconds": 300,
+  "verification_timeout_seconds": 300,
+  "verification_interval_seconds": 15
+}
