@@ -12,6 +12,74 @@ from mcp.client.stdio import stdio_client
 from config import SETTINGS, RULES, SYSTEM_PROMPT
 
 
+def tool_data(result):
+    """Extract a dictionary from an MCP tool result."""
+    if isinstance(result.structuredContent, dict):
+        return result.structuredContent
+
+    for block in result.content:
+        if block.type == "text":
+            try:
+                data = json.loads(block.text)
+            except (ValueError, TypeError):
+                continue
+
+            if isinstance(data, dict):
+                return data
+
+    return {}
+
+
+async def execute_diagnostic(session, name, arguments, instance_id):
+    result = await session.call_tool(name, arguments)
+
+    if result.isError:
+        return result.model_dump(mode="json"), "error"
+
+    if name != "collect_apache_diagnostics":
+        return result.model_dump(mode="json"), "success"
+
+    data = tool_data(result)
+    command_id = data.get("command_id")
+
+    if not command_id:
+        return {
+            "status": "diagnostics_not_submitted",
+            "details": data,
+        }, "error"
+
+    for attempt in range(15):
+        await asyncio.sleep(3)
+
+        check = await session.call_tool(
+            "get_diagnostic_result",
+            {
+                "instance_id": instance_id,
+                "command_id": command_id,
+            },
+        )
+
+        if check.isError:
+            return check.model_dump(mode="json"), "error"
+
+        command_status = tool_data(check).get("status")
+
+        if command_status in {
+            "Success", "Failed", "Cancelled", "TimedOut"
+        }:
+            status = "success" if command_status == "Success" else "error"
+            return check.model_dump(mode="json"), status
+
+    return {
+        "command_id": command_id,
+        "status": "diagnostic_result_timeout",
+        "note": (
+            "Diagnostic result was not available in time. "
+            "Do not claim Apache health is verified."
+        ),
+    }, "error"
+
+
 async def investigate(instance_id):
     if instance_id not in SETTINGS["instance_ids"]:
         raise ValueError("Instance is not allowed.")
@@ -28,7 +96,9 @@ async def investigate(instance_id):
 
     server = StdioServerParameters(
         command=sys.executable,
-        args=[str(Path(__file__).with_name("mcp_server.py").resolve())],
+        args=[
+            str(Path(__file__).with_name("mcp_server.py").resolve())
+        ],
     )
 
     async with stdio_client(server) as (read, write):
@@ -40,7 +110,6 @@ async def investigate(instance_id):
             await session.initialize()
             discovered = await session.list_tools()
 
-            # Only diagnostic tools are available to this investigation.
             permitted = {
                 "get_ec2_status",
                 "get_target_health",
@@ -69,11 +138,13 @@ async def investigate(instance_id):
                         f"Investigate instance {instance_id}. "
                         "Check its state and ALB health first. "
                         "Collect further evidence when needed. "
-                        "For SSM diagnostics, retrieve the command result. "
+                        "The collect_apache_diagnostics tool response "
+                        "includes the collected result when available. "
                         "Do not diagnose another instance. "
                         "Recommend a permitted action only if justified. "
                         "Do not perform recovery. "
-                        f"Allowed recovery actions: {RULES['allowed_actions']}."
+                        "Finish with findings rather than internal thoughts. "
+                        f"Allowed actions: {RULES['allowed_actions']}."
                     )
                 }],
             }]
@@ -115,6 +186,7 @@ async def investigate(instance_id):
                     )
 
                 results = []
+
                 for call in calls:
                     name = call["name"]
                     arguments = call["input"]
@@ -130,13 +202,12 @@ async def investigate(instance_id):
                         ):
                             raise ValueError("Incident target mismatch.")
 
-                        # Allow SSM time to publish its command result.
                         if name == "get_diagnostic_result":
                             await asyncio.sleep(3)
 
-                        result = await session.call_tool(name, arguments)
-                        payload = result.model_dump(mode="json")
-                        status = "error" if result.isError else "success"
+                        payload, status = await execute_diagnostic(
+                            session, name, arguments, instance_id
+                        )
 
                     except Exception as error:
                         payload = {"error": str(error)}
@@ -150,7 +221,10 @@ async def investigate(instance_id):
                         }
                     })
 
-                messages.append({"role": "user", "content": results})
+                messages.append({
+                    "role": "user",
+                    "content": results,
+                })
 
             return (
                 "Investigation step limit reached. "
