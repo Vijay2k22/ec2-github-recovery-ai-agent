@@ -28,7 +28,7 @@ def validate_instance(instance_id):
 
 @mcp.tool()
 def get_ec2_status(instance_id: str) -> dict:
-    """Read state, tags, and status checks for an allowed instance."""
+    """Read instance specifications, state, tags, and status checks."""
     validate_instance(instance_id)
     ec2 = aws_client("ec2")
 
@@ -45,6 +45,18 @@ def get_ec2_status(instance_id: str) -> dict:
     return {
         "instance_id": instance_id,
         "state": instance["State"]["Name"],
+        "instance_type": instance.get("InstanceType"),
+        "architecture": instance.get("Architecture"),
+        "image_id": instance.get("ImageId"),
+        "availability_zone": instance.get("Placement", {}).get(
+            "AvailabilityZone"
+        ),
+        "private_ip": instance.get("PrivateIpAddress"),
+        "public_ip": instance.get("PublicIpAddress"),
+        "launch_time": (
+            instance["LaunchTime"].isoformat()
+            if instance.get("LaunchTime") else None
+        ),
         "tags": {
             tag["Key"]: tag["Value"]
             for tag in instance.get("Tags", [])
