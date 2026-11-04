@@ -7,3 +7,6 @@
 .env
 __pycache__/
 *.zip
+local-state/
+.venv/
+__pycache__/
