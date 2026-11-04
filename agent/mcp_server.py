@@ -222,5 +222,18 @@ def get_diagnostic_result(instance_id: str, command_id: str) -> dict:
         "stderr": response.get("StandardErrorContent", "")[:2000],
     }
 
+@mcp.tool()
+def execute_recovery(incident_id: str) -> dict:
+    """Execute the exact recovery action approved in the incident database."""
+    from recovery_executor import execute_approved_recovery
+    return execute_approved_recovery(incident_id)
+
+
+@mcp.tool()
+def check_recovery(incident_id: str) -> dict:
+    """Check EC2, Apache, local HTTP, and ALB recovery health."""
+    from verification import verify_recovery
+    return verify_recovery(incident_id)
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
